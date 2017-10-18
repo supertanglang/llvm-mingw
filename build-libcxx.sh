@@ -100,9 +100,13 @@ for arch in $ARCHS; do
         -DLIBCXXABI_LIBCXX_INCLUDES=../../libcxx/include \
         -DLLVM_NO_OLD_LIBSTDCXX=TRUE \
         -DCXX_SUPPORTS_CXX11=TRUE \
-        -DCMAKE_CXX_FLAGS="-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS" \
+        -DCMAKE_CXX_FLAGS="-D_LIBCPP_BUILDING_LIBRARY -U_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS" \
         ..
     make -j$CORES
+    # Delete stdlib_new_delete.cpp.obj from this archive; this conflicts
+    # with new.cpp.obj from libcxx, and that object file has got the same
+    # symbols and a few more.
+    llvm-ar d lib/libc++abi.a stdlib_new_delete.cpp.obj
     cd ..
 done
 cd ..
@@ -128,21 +132,25 @@ for arch in $ARCHS; do
         -DLIBCXX_ENABLE_THREADS=ON \
         -DLIBCXX_HAS_WIN32_THREAD_API=ON \
         -DLIBCXX_ENABLE_MONOTONIC_CLOCK=ON \
-        -DLIBCXX_ENABLE_SHARED=OFF \
+        -DLIBCXX_ENABLE_SHARED=ON \
+        -DLIBCXX_ENABLE_STATIC=OFF \
         -DLIBCXX_SUPPORTS_STD_EQ_CXX11_FLAG=TRUE \
         -DLIBCXX_HAVE_CXX_ATOMICS_WITHOUT_LIB=TRUE \
         -DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=OFF \
         -DLIBCXX_ENABLE_FILESYSTEM=OFF \
         -DLIBCXX_ENABLE_STATIC_ABI_LIBRARY=TRUE \
+        -DLIBCXX_ABI_UNSTABLE=TRUE \
         -DLIBCXX_CXX_ABI=libcxxabi \
         -DLIBCXX_CXX_ABI_INCLUDE_PATHS=../../libcxxabi/include \
         -DLIBCXX_CXX_ABI_LIBRARY_PATH=../../libcxxabi/build-$arch/lib \
-        -DCMAKE_CXX_FLAGS="-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS" \
+        -DCMAKE_CXX_FLAGS="-D_LIBCXXABI_BUILDING_LIBRARY" \
+        -DCMAKE_SHARED_LINKER_FLAGS="-lunwind -Wl,--export-all-symbols" \
+        -DLIBCXX_ENABLE_ABI_LINKER_SCRIPT=FALSE \
         ..
     make -j$CORES
     make install
     $MERGE_ARCHIVES \
-        $PREFIX/$arch-w64-mingw32/lib/libc++.a \
+        $PREFIX/$arch-w64-mingw32/lib/libc++.dll.a \
         $PREFIX/$arch-w64-mingw32/lib/libunwind.dll.a
     cd ..
 done
