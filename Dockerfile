@@ -80,3 +80,124 @@ RUN wget http://www.nasm.us/pub/nasm/releasebuilds/2.13.01/nasm-2.13.01.tar.xz &
     ./configure --prefix=/build/prefix && \
     make -j$CORES && \
     make install
+
+COPY winemine/ ./winemine/
+# We must build winemine with ucrtbase regardless of what the default is,
+# since the arm msvcrt.dll (or the def file in mingw-w64 at least) doesn't
+# include _winitenv.
+RUN mkdir -p /build/demo/bin && \
+    cd winemine && \
+    for arch in $TOOLCHAIN_ARCHS; do \
+        mkdir build-$arch && \
+        cd build-$arch && \
+        make -f ../Makefile CROSS=$arch-w64-mingw32- && \
+        cp winemine.exe /build/demo/bin/winemine-$arch.exe && \
+        cd .. || exit 1; \
+    done
+
+ENV TEST_ARCH=x86_64
+ENV TEST_TRIPLET=$TEST_ARCH-w64-mingw32
+ENV TEST_ROOT=/build/demo
+ENV PKG_CONFIG_LIBDIR=/build/demo/lib/pkgconfig
+
+RUN git clone http://git.xiph.org/speex.git/ && \
+    cd speex && \
+    git checkout 243470fb39e8a5712b5d01c3bf5631081a640a0d && \
+    ./autogen.sh
+
+RUN cd speex && \
+    ./configure --prefix=$TEST_ROOT --host=$TEST_TRIPLET --enable-shared && \
+    make -j4 && \
+    make install
+
+RUN git clone git://git.videolan.org/x264.git && \
+    cd x264 && \
+    git checkout b00bcafe53a166b63a179a2f41470cd13b59f927
+
+RUN cd x264 && \
+    case $TEST_ARCH in \
+    armv7) \
+        export AS="./tools/gas-preprocessor.pl -arch arm -as-type clang -force-thumb -- armv7-w64-mingw32-clang -mimplicit-it=always" \
+        ;; \
+    aarch64) \
+        export AS="aarch64-w64-mingw32-clang" \
+        ;; \
+    esac && \
+    CC="$TEST_TRIPLET-gcc" STRIP="" AR="llvm-ar" RANLIB="llvm-ranlib" ./configure --host=$TEST_TRIPLET --enable-shared --prefix=$TEST_ROOT && \
+    make -j4 && \
+    make install
+
+RUN git clone git://git.libav.org/libav.git && \
+    cd libav && \
+    git checkout c6558e8840fbb2386bf8742e4d68dd6e067d262e
+
+RUN cd libav && \
+    mkdir build && cd build && \
+    ../configure --prefix=$TEST_ROOT --arch=$TEST_ARCH --target-os=mingw32 --cross-prefix=$TEST_TRIPLET- --enable-cross-compile --enable-gpl --enable-shared --enable-libspeex --enable-libx264 --pkg-config=pkg-config --extra-cflags="-DX264_API_IMPORTS" && \
+    make -j4 && \
+    make install
+
+RUN wget https://gmplib.org/download/gmp/gmp-6.1.2.tar.xz && \
+    tar -Jxvf gmp-6.1.2.tar.xz
+
+RUN cd gmp-6.1.2 && \
+    ./configure --prefix=$TEST_ROOT --host=$TEST_TRIPLET --enable-shared --disable-static --with-pic && \
+    make -j4 && \
+    make install
+
+RUN wget https://ftp.gnu.org/gnu/nettle/nettle-3.3.tar.gz && \
+    tar -zxvf nettle-3.3.tar.gz
+
+COPY patches/nettle-*.patch /build/patches/
+RUN cd nettle-3.3 && \
+    patch -p1 < /build/patches/nettle-0001.patch && \
+    ./configure --prefix=$TEST_ROOT --host=$TEST_TRIPLET --enable-shared --with-include-path=$TEST_ROOT/include --with-lib-path=$TEST_ROOT/lib && \
+    make -j4 && \
+    make install
+
+RUN wget http://zlib.net/zlib-1.2.11.tar.gz && \
+    tar -zxvf zlib-1.2.11.tar.gz
+
+RUN cd zlib-1.2.11 && \
+    make -f win32/Makefile.gcc PREFIX=$TEST_TRIPLET- SHARED_MODE=1 -j4 && \
+    make -f win32/Makefile.gcc install SHARED_MODE=1 INCLUDE_PATH=$TEST_ROOT/include LIBRARY_PATH=$TEST_ROOT/lib BINARY_PATH=$TEST_ROOT/bin
+
+RUN wget https://www.gnupg.org/ftp/gcrypt/gnutls/v3.5/gnutls-3.5.11.tar.xz && \
+    tar -Jxvf gnutls-3.5.11.tar.xz
+
+RUN cd gnutls-3.5.11 && \
+    ./configure --prefix=$TEST_ROOT --host=$TEST_TRIPLET --enable-shared GMP_CFLAGS=-I\$$TEST_ROOT/include GMP_LIBS=-lgmp --with-included-libtasn1 --with-included-unistring --disable-cxx --enable-local-libopts --without-p11-kit --disable-tests --disable-doc --disable-hardware-acceleration --disable-tools && \
+    make -j4 && \
+    make install
+
+RUN wget https://curl.haxx.se/download/curl-7.56.1.tar.xz && \
+    tar -Jxvf curl-7.56.1.tar.xz
+
+RUN cd curl-7.56.1 && \
+    ./configure --prefix=$TEST_ROOT --host=$TEST_TRIPLET --enable-shared --with-gnutls=$TEST_ROOT --with-zlib=$TEST_ROOT && \
+    make -j4 && \
+    make install
+
+RUN wget http://download.qt.io/official_releases/qt/5.7/5.7.1/submodules/qtbase-opensource-src-5.7.1.tar.xz && \
+    tar -Jxvf qtbase-opensource-src-5.7.1.tar.xz
+
+COPY patches/qt-*.patch /build/patches/
+RUN cd qtbase-opensource-src-5.7.1 && \
+    for i in /build/patches/qt-*.patch; do \
+        patch -p1 < $i || exit 1; \
+    done && \
+    ./configure -xplatform win32-g++ -device-option CROSS_COMPILE=$TEST_TRIPLET- -release -opensource -confirm-license -no-opengl -nomake examples -silent -prefix $TEST_ROOT && \
+    make -j4 && \
+    make install
+
+RUN for exec in moc qmake rcc uic; do \
+        cp /build/demo/bin/$exec /build/prefix/bin; \
+    done
+
+RUN mkdir -p /build/demo/bin/platforms && \
+    cp /build/demo/plugins/platforms/qwindows.dll /build/demo/bin/platforms
+
+RUN cd qtbase-opensource-src-5.7.1/examples/widgets/widgets/analogclock && \
+    qmake && \
+    make -j4 && \
+    cp release/analogclock.exe /build/demo/bin

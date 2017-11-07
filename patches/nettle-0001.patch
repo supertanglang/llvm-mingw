@@ -1,0 +1,366 @@
+diff -ur nettle-3.3-orig/Makefile.in nettle-3.3/Makefile.in
+--- nettle-3.3-orig/Makefile.in	2016-10-01 07:28:38.000000000 +0000
++++ nettle-3.3/Makefile.in	2017-11-03 08:59:43.793294151 +0000
+@@ -17,7 +17,6 @@
+ 
+ OPT_NETTLE_SOURCES = @OPT_NETTLE_SOURCES@
+ 
+-SUBDIRS = tools testsuite examples
+ 
+ include config.make
+ 
+@@ -251,6 +250,8 @@
+ 	$(COMPILE) -c $< \
+ 	&& $(DEP_PROCESS)
+ 
++$(nettle_OBJS): CFLAGS += -DBUILDING_NETTLE
++
+ # Rules building shared libraries.
+ $(LIBNETTLE_FORLINK): $(nettle_OBJS)
+ 	$(LIBNETTLE_LINK) $(nettle_OBJS) @EXTRA_LINKER_FLAGS@ -o $@ $(LIBNETTLE_LIBS)
+diff -ur nettle-3.3-orig/ecc-192.c nettle-3.3/ecc-192.c
+--- nettle-3.3-orig/ecc-192.c	2016-10-01 07:28:38.000000000 +0000
++++ nettle-3.3/ecc-192.c	2017-11-03 08:59:43.793294151 +0000
+@@ -110,7 +110,7 @@
+ #define ecc_192_modp ecc_mod
+ #endif
+ 
+-const struct ecc_curve nettle_secp_192r1 =
++const struct ecc_curve _nettle_secp_192r1 =
+ {
+   {
+     192,
+@@ -172,3 +172,7 @@
+   ecc_table
+ };
+ 
++const struct ecc_curve *nettle_get_secp_192r1(void)
++{
++  return &_nettle_secp_192r1;
++}
+diff -ur nettle-3.3-orig/ecc-224.c nettle-3.3/ecc-224.c
+--- nettle-3.3-orig/ecc-224.c	2016-10-01 07:28:38.000000000 +0000
++++ nettle-3.3/ecc-224.c	2017-11-03 08:59:43.793294151 +0000
+@@ -62,7 +62,7 @@
+ # error Configuration error
+ #endif
+ 
+-const struct ecc_curve nettle_secp_224r1 =
++const struct ecc_curve _nettle_secp_224r1 =
+ {
+   {
+     224,
+@@ -123,3 +123,8 @@
+   ecc_unit,
+   ecc_table
+ };
++
++const struct ecc_curve *nettle_get_secp_224r1(void)
++{
++  return &_nettle_secp_224r1;
++}
+diff -ur nettle-3.3-orig/ecc-256.c nettle-3.3/ecc-256.c
+--- nettle-3.3-orig/ecc-256.c	2016-10-01 07:28:38.000000000 +0000
++++ nettle-3.3/ecc-256.c	2017-11-03 08:59:43.793294151 +0000
+@@ -239,7 +239,7 @@
+ #error Unsupported parameters
+ #endif
+ 
+-const struct ecc_curve nettle_secp_256r1 =
++const struct ecc_curve _nettle_secp_256r1 =
+ {
+   {
+     256,
+@@ -300,3 +300,8 @@
+   ecc_unit,
+   ecc_table
+ };
++
++const struct ecc_curve *nettle_get_secp_256r1(void)
++{
++  return &_nettle_secp_256r1;
++}
+diff -ur nettle-3.3-orig/ecc-384.c nettle-3.3/ecc-384.c
+--- nettle-3.3-orig/ecc-384.c	2016-10-01 07:28:38.000000000 +0000
++++ nettle-3.3/ecc-384.c	2017-11-03 08:59:43.793294151 +0000
+@@ -147,7 +147,7 @@
+ #define ecc_384_modp ecc_mod
+ #endif
+   
+-const struct ecc_curve nettle_secp_384r1 =
++const struct ecc_curve _nettle_secp_384r1 =
+ {
+   {
+     384,
+@@ -208,3 +208,8 @@
+   ecc_unit,
+   ecc_table
+ };
++
++const struct ecc_curve *nettle_get_secp_384r1(void)
++{
++  return &_nettle_secp_384r1;
++}
+diff -ur nettle-3.3-orig/ecc-521.c nettle-3.3/ecc-521.c
+--- nettle-3.3-orig/ecc-521.c	2016-10-01 07:28:38.000000000 +0000
++++ nettle-3.3/ecc-521.c	2017-11-03 08:59:43.793294151 +0000
+@@ -75,7 +75,7 @@
+ }
+ #endif
+ 
+-const struct ecc_curve nettle_secp_521r1 =
++const struct ecc_curve _nettle_secp_521r1 =
+ {
+   {
+     521,
+@@ -137,3 +137,7 @@
+   ecc_table
+ };
+ 
++const struct ecc_curve *nettle_get_secp_521r1(void)
++{
++  return &_nettle_secp_521r1;
++}
+diff -ur nettle-3.3-orig/ecc-curve.h nettle-3.3/ecc-curve.h
+--- nettle-3.3-orig/ecc-curve.h	2016-10-01 07:28:38.000000000 +0000
++++ nettle-3.3/ecc-curve.h	2017-11-03 08:59:43.797294061 +0000
+@@ -41,11 +41,26 @@
+ /* The contents of this struct is internal. */
+ struct ecc_curve;
+ 
+-extern const struct ecc_curve nettle_secp_192r1;
+-extern const struct ecc_curve nettle_secp_224r1;
+-extern const struct ecc_curve nettle_secp_256r1;
+-extern const struct ecc_curve nettle_secp_384r1;
+-extern const struct ecc_curve nettle_secp_521r1;
++#ifdef __GNUC__
++#define NETTLE_PURE __attribute__((pure))
++#else
++#define NETTLE_PURE
++#endif
++
++const struct ecc_curve * NETTLE_PURE nettle_get_secp_192r1(void);
++const struct ecc_curve * NETTLE_PURE nettle_get_secp_224r1(void);
++const struct ecc_curve * NETTLE_PURE nettle_get_secp_256r1(void);
++const struct ecc_curve * NETTLE_PURE nettle_get_secp_384r1(void);
++const struct ecc_curve * NETTLE_PURE nettle_get_secp_521r1(void);
++
++#undef NETTLE_PURE
++
++/* For backwards compatibility */
++#define nettle_secp_192r1 (*nettle_get_secp_192r1())
++#define nettle_secp_224r1 (*nettle_get_secp_224r1())
++#define nettle_secp_256r1 (*nettle_get_secp_256r1())
++#define nettle_secp_384r1 (*nettle_get_secp_384r1())
++#define nettle_secp_521r1 (*nettle_get_secp_521r1())
+ 
+ #ifdef __cplusplus
+ }
+diff -ur nettle-3.3-orig/ecc-internal.h nettle-3.3/ecc-internal.h
+--- nettle-3.3-orig/ecc-internal.h	2016-10-01 07:28:38.000000000 +0000
++++ nettle-3.3/ecc-internal.h	2017-11-03 08:59:43.797294061 +0000
+@@ -73,6 +73,12 @@
+ #define sec_modinv _nettle_sec_modinv
+ #define curve25519_eh_to_x _nettle_curve25519_eh_to_x
+ 
++extern const struct ecc_curve _nettle_secp_192r1;
++extern const struct ecc_curve _nettle_secp_224r1;
++extern const struct ecc_curve _nettle_secp_256r1;
++extern const struct ecc_curve _nettle_secp_384r1;
++extern const struct ecc_curve _nettle_secp_521r1;
++
+ /* Keep this structure internal for now. It's misnamed (since it's
+    really implementing the equivalent twisted Edwards curve, with
+    different coordinates). And we're not quite ready to provide
+diff -ur nettle-3.3-orig/examples/ecc-benchmark.c nettle-3.3/examples/ecc-benchmark.c
+--- nettle-3.3-orig/examples/ecc-benchmark.c	2016-10-01 07:28:38.000000000 +0000
++++ nettle-3.3/examples/ecc-benchmark.c	2017-11-03 08:59:43.797294061 +0000
+@@ -330,12 +330,12 @@
+ }
+ 
+ const struct ecc_curve * const curves[] = {
+-  &nettle_secp_192r1,
+-  &nettle_secp_224r1,
++  &_nettle_secp_192r1,
++  &_nettle_secp_224r1,
+   &_nettle_curve25519,
+-  &nettle_secp_256r1,
+-  &nettle_secp_384r1,
+-  &nettle_secp_521r1,
++  &_nettle_secp_256r1,
++  &_nettle_secp_384r1,
++  &_nettle_secp_521r1,
+ };
+ 
+ #define numberof(x)  (sizeof (x) / sizeof ((x)[0]))
+diff -ur nettle-3.3-orig/nettle-meta.h nettle-3.3/nettle-meta.h
+--- nettle-3.3-orig/nettle-meta.h	2016-10-01 07:28:38.000000000 +0000
++++ nettle-3.3/nettle-meta.h	2017-11-03 08:59:43.797294061 +0000
+@@ -40,6 +40,11 @@
+ extern "C" {
+ #endif
+ 
++#if defined(_WIN32) && !defined(BUILDING_NETTLE)
++#define EXPORT __declspec(dllimport)
++#else
++#define EXPORT
++#endif
+ 
+ struct nettle_cipher
+ {
+@@ -61,30 +66,30 @@
+ };
+ 
+ /* null-terminated list of ciphers implemented by this version of nettle */
+-extern const struct nettle_cipher * const nettle_ciphers[];
++EXPORT extern const struct nettle_cipher * const nettle_ciphers[];
+ 
+-extern const struct nettle_cipher nettle_aes128;
+-extern const struct nettle_cipher nettle_aes192;
+-extern const struct nettle_cipher nettle_aes256;
+-
+-extern const struct nettle_cipher nettle_camellia128;
+-extern const struct nettle_cipher nettle_camellia192;
+-extern const struct nettle_cipher nettle_camellia256;
+-
+-extern const struct nettle_cipher nettle_cast128;
+-
+-extern const struct nettle_cipher nettle_serpent128;
+-extern const struct nettle_cipher nettle_serpent192;
+-extern const struct nettle_cipher nettle_serpent256;
+-
+-extern const struct nettle_cipher nettle_twofish128;
+-extern const struct nettle_cipher nettle_twofish192;
+-extern const struct nettle_cipher nettle_twofish256;
+-
+-extern const struct nettle_cipher nettle_arctwo40;
+-extern const struct nettle_cipher nettle_arctwo64;
+-extern const struct nettle_cipher nettle_arctwo128;
+-extern const struct nettle_cipher nettle_arctwo_gutmann128;
++EXPORT extern const struct nettle_cipher nettle_aes128;
++EXPORT extern const struct nettle_cipher nettle_aes192;
++EXPORT extern const struct nettle_cipher nettle_aes256;
++
++EXPORT extern const struct nettle_cipher nettle_camellia128;
++EXPORT extern const struct nettle_cipher nettle_camellia192;
++EXPORT extern const struct nettle_cipher nettle_camellia256;
++
++EXPORT extern const struct nettle_cipher nettle_cast128;
++
++EXPORT extern const struct nettle_cipher nettle_serpent128;
++EXPORT extern const struct nettle_cipher nettle_serpent192;
++EXPORT extern const struct nettle_cipher nettle_serpent256;
++
++EXPORT extern const struct nettle_cipher nettle_twofish128;
++EXPORT extern const struct nettle_cipher nettle_twofish192;
++EXPORT extern const struct nettle_cipher nettle_twofish256;
++
++EXPORT extern const struct nettle_cipher nettle_arctwo40;
++EXPORT extern const struct nettle_cipher nettle_arctwo64;
++EXPORT extern const struct nettle_cipher nettle_arctwo128;
++EXPORT extern const struct nettle_cipher nettle_arctwo_gutmann128;
+ 
+ struct nettle_hash
+ {
+@@ -115,24 +120,24 @@
+ } 
+ 
+ /* null-terminated list of digests implemented by this version of nettle */
+-extern const struct nettle_hash * const nettle_hashes[];
++EXPORT extern const struct nettle_hash * const nettle_hashes[];
+ 
+-extern const struct nettle_hash nettle_md2;
+-extern const struct nettle_hash nettle_md4;
+-extern const struct nettle_hash nettle_md5;
+-extern const struct nettle_hash nettle_gosthash94;
+-extern const struct nettle_hash nettle_ripemd160;
+-extern const struct nettle_hash nettle_sha1;
+-extern const struct nettle_hash nettle_sha224;
+-extern const struct nettle_hash nettle_sha256;
+-extern const struct nettle_hash nettle_sha384;
+-extern const struct nettle_hash nettle_sha512;
+-extern const struct nettle_hash nettle_sha512_224;
+-extern const struct nettle_hash nettle_sha512_256;
+-extern const struct nettle_hash nettle_sha3_224;
+-extern const struct nettle_hash nettle_sha3_256;
+-extern const struct nettle_hash nettle_sha3_384;
+-extern const struct nettle_hash nettle_sha3_512;
++EXPORT extern const struct nettle_hash nettle_md2;
++EXPORT extern const struct nettle_hash nettle_md4;
++EXPORT extern const struct nettle_hash nettle_md5;
++EXPORT extern const struct nettle_hash nettle_gosthash94;
++EXPORT extern const struct nettle_hash nettle_ripemd160;
++EXPORT extern const struct nettle_hash nettle_sha1;
++EXPORT extern const struct nettle_hash nettle_sha224;
++EXPORT extern const struct nettle_hash nettle_sha256;
++EXPORT extern const struct nettle_hash nettle_sha384;
++EXPORT extern const struct nettle_hash nettle_sha512;
++EXPORT extern const struct nettle_hash nettle_sha512_224;
++EXPORT extern const struct nettle_hash nettle_sha512_256;
++EXPORT extern const struct nettle_hash nettle_sha3_224;
++EXPORT extern const struct nettle_hash nettle_sha3_256;
++EXPORT extern const struct nettle_hash nettle_sha3_384;
++EXPORT extern const struct nettle_hash nettle_sha3_512;
+ 
+ struct nettle_aead
+ {
+@@ -157,15 +162,15 @@
+ 
+ /* null-terminated list of aead constructions implemented by this
+    version of nettle */
+-extern const struct nettle_aead * const nettle_aeads[];
++EXPORT extern const struct nettle_aead * const nettle_aeads[];
+ 
+-extern const struct nettle_aead nettle_gcm_aes128;
+-extern const struct nettle_aead nettle_gcm_aes192;
+-extern const struct nettle_aead nettle_gcm_aes256;
+-extern const struct nettle_aead nettle_gcm_camellia128;
+-extern const struct nettle_aead nettle_gcm_camellia256;
+-extern const struct nettle_aead nettle_eax_aes128;
+-extern const struct nettle_aead nettle_chacha_poly1305;
++EXPORT extern const struct nettle_aead nettle_gcm_aes128;
++EXPORT extern const struct nettle_aead nettle_gcm_aes192;
++EXPORT extern const struct nettle_aead nettle_gcm_aes256;
++EXPORT extern const struct nettle_aead nettle_gcm_camellia128;
++EXPORT extern const struct nettle_aead nettle_gcm_camellia256;
++EXPORT extern const struct nettle_aead nettle_eax_aes128;
++EXPORT extern const struct nettle_aead nettle_chacha_poly1305;
+ 
+ struct nettle_armor
+ {
+@@ -217,11 +222,11 @@
+ }
+ 
+ /* null-terminated list of armor schemes implemented by this version of nettle */
+-extern const struct nettle_armor * const nettle_armors[];
++EXPORT extern const struct nettle_armor * const nettle_armors[];
+ 
+-extern const struct nettle_armor nettle_base64;
+-extern const struct nettle_armor nettle_base64url;
+-extern const struct nettle_armor nettle_base16;
++EXPORT extern const struct nettle_armor nettle_base64;
++EXPORT extern const struct nettle_armor nettle_base64url;
++EXPORT extern const struct nettle_armor nettle_base16;
+ 
+ #ifdef __cplusplus
+ }
+diff -ur nettle-3.3-orig/testsuite/testutils.c nettle-3.3/testsuite/testutils.c
+--- nettle-3.3-orig/testsuite/testutils.c	2016-10-01 07:28:38.000000000 +0000
++++ nettle-3.3/testsuite/testutils.c	2017-11-03 08:59:43.797294061 +0000
+@@ -1212,11 +1212,11 @@
+ }
+ 
+ const struct ecc_curve * const ecc_curves[] = {
+-  &nettle_secp_192r1,
+-  &nettle_secp_224r1,
+-  &nettle_secp_256r1,
+-  &nettle_secp_384r1,
+-  &nettle_secp_521r1,
++  &_nettle_secp_192r1,
++  &_nettle_secp_224r1,
++  &_nettle_secp_256r1,
++  &_nettle_secp_384r1,
++  &_nettle_secp_521r1,
+   &_nettle_curve25519,
+   NULL
+ };
