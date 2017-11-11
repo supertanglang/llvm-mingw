@@ -95,7 +95,7 @@ RUN mkdir -p /build/demo/bin && \
         cd .. || exit 1; \
     done
 
-ENV TEST_ARCH=x86_64
+ENV TEST_ARCH=armv7
 ENV TEST_TRIPLET=$TEST_ARCH-w64-mingw32
 ENV TEST_ROOT=/build/demo
 ENV PKG_CONFIG_LIBDIR=/build/demo/lib/pkgconfig
@@ -137,24 +137,6 @@ RUN cd libav && \
     make -j4 && \
     make install
 
-RUN wget https://gmplib.org/download/gmp/gmp-6.1.2.tar.xz && \
-    tar -Jxvf gmp-6.1.2.tar.xz
-
-RUN cd gmp-6.1.2 && \
-    ./configure --prefix=$TEST_ROOT --host=$TEST_TRIPLET --enable-shared --disable-static --with-pic && \
-    make -j4 && \
-    make install
-
-RUN wget https://ftp.gnu.org/gnu/nettle/nettle-3.3.tar.gz && \
-    tar -zxvf nettle-3.3.tar.gz
-
-COPY patches/nettle-*.patch /build/patches/
-RUN cd nettle-3.3 && \
-    patch -p1 < /build/patches/nettle-0001.patch && \
-    ./configure --prefix=$TEST_ROOT --host=$TEST_TRIPLET --enable-shared --with-include-path=$TEST_ROOT/include --with-lib-path=$TEST_ROOT/lib && \
-    make -j4 && \
-    make install
-
 RUN wget http://zlib.net/zlib-1.2.11.tar.gz && \
     tar -zxvf zlib-1.2.11.tar.gz
 
@@ -162,19 +144,11 @@ RUN cd zlib-1.2.11 && \
     make -f win32/Makefile.gcc PREFIX=$TEST_TRIPLET- SHARED_MODE=1 -j4 && \
     make -f win32/Makefile.gcc install SHARED_MODE=1 INCLUDE_PATH=$TEST_ROOT/include LIBRARY_PATH=$TEST_ROOT/lib BINARY_PATH=$TEST_ROOT/bin
 
-RUN wget https://www.gnupg.org/ftp/gcrypt/gnutls/v3.5/gnutls-3.5.11.tar.xz && \
-    tar -Jxvf gnutls-3.5.11.tar.xz
-
-RUN cd gnutls-3.5.11 && \
-    ./configure --prefix=$TEST_ROOT --host=$TEST_TRIPLET --enable-shared GMP_CFLAGS=-I\$$TEST_ROOT/include GMP_LIBS=-lgmp --with-included-libtasn1 --with-included-unistring --disable-cxx --enable-local-libopts --without-p11-kit --disable-tests --disable-doc --disable-hardware-acceleration --disable-tools && \
-    make -j4 && \
-    make install
-
 RUN wget https://curl.haxx.se/download/curl-7.56.1.tar.xz && \
     tar -Jxvf curl-7.56.1.tar.xz
 
 RUN cd curl-7.56.1 && \
-    ./configure --prefix=$TEST_ROOT --host=$TEST_TRIPLET --enable-shared --with-gnutls=$TEST_ROOT --with-zlib=$TEST_ROOT && \
+    ./configure --prefix=$TEST_ROOT --host=$TEST_TRIPLET --enable-shared --with-winssl --with-zlib=$TEST_ROOT && \
     make -j4 && \
     make install
 
