@@ -73,3 +73,10 @@ RUN cd hello && \
     for arch in $TOOLCHAIN_ARCHS; do \
         $arch-w64-mingw32-clang++ hello-exception.cpp -o hello-exception-$arch.exe || exit 1; \
     done
+
+RUN wget http://www.nasm.us/pub/nasm/releasebuilds/2.13.01/nasm-2.13.01.tar.xz && \
+    tar -Jxvf nasm-2.13.01.tar.xz && \
+    cd nasm-2.13.01 && \
+    ./configure --prefix=/build/prefix && \
+    make -j$CORES && \
+    make install
