@@ -36,4 +36,4 @@ aarch64)
 	ARCH_FLAGS=-femulated-tls
 	;;
 esac
-$DIR/$EXE -target $TARGET -rtlib=compiler-rt -stdlib=libc++ -fuse-ld=lld --sysroot="$SYSROOT" $ARCH_FLAGS -Qunused-arguments "$@"
+$DIR/$EXE -target $TARGET -rtlib=compiler-rt -stdlib=libc++ -fuse-ld=lld --sysroot="$SYSROOT" $ARCH_FLAGS -Qunused-arguments -Wl,-s "$@"
