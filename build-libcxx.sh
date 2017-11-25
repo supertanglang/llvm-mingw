@@ -65,17 +65,14 @@ for arch in $ARCHS; do
         -DCXX_SUPPORTS_CXX11=TRUE \
         -DLIBUNWIND_USE_COMPILER_RT=TRUE \
         -DLIBUNWIND_ENABLE_THREADS=TRUE \
-        -DLIBUNWIND_ENABLE_SHARED=FALSE \
+        -DLIBUNWIND_ENABLE_SHARED=TRUE \
+        -DLIBUNWIND_ENABLE_STATIC=FALSE \
         -DLIBUNWIND_ENABLE_CROSS_UNWINDING=FALSE \
         -DCMAKE_CXX_FLAGS="-nostdinc++ -I$LIBCXX/include" \
+        -DCMAKE_SHARED_LINKER_FLAGS="-lpsapi" \
         ..
     make -j$CORES
     make install
-    # Merge libpsapi.a into the static library libunwind.a, to
-    # avoid having to specify -lpsapi when linking to it.
-    $MERGE_ARCHIVES \
-        $PREFIX/$arch-w64-mingw32/lib/libunwind.a \
-        $PREFIX/$arch-w64-mingw32/lib/libpsapi.a
     cd ..
 done
 cd ..
@@ -146,7 +143,7 @@ for arch in $ARCHS; do
     make install
     $MERGE_ARCHIVES \
         $PREFIX/$arch-w64-mingw32/lib/libc++.a \
-        $PREFIX/$arch-w64-mingw32/lib/libunwind.a
+        $PREFIX/$arch-w64-mingw32/lib/libunwind.dll.a
     cd ..
 done
 cd ..
