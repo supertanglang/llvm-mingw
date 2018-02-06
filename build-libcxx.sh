@@ -100,7 +100,7 @@ for arch in $ARCHS; do
         -DLIBCXXABI_LIBCXX_INCLUDES=../../libcxx/include \
         -DLLVM_NO_OLD_LIBSTDCXX=TRUE \
         -DCXX_SUPPORTS_CXX11=TRUE \
-        -DCMAKE_CXX_FLAGS="-D_LIBCPP_BUILDING_LIBRARY -U_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS" \
+        -DCMAKE_CXX_FLAGS="-D_LIBCPP_BUILDING_LIBRARY -U_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -fno-cxx-dll" \
         ..
     make -j$CORES
     # Delete stdlib_new_delete.cpp.obj from this archive; this conflicts
@@ -143,7 +143,7 @@ for arch in $ARCHS; do
         -DLIBCXX_CXX_ABI=libcxxabi \
         -DLIBCXX_CXX_ABI_INCLUDE_PATHS=../../libcxxabi/include \
         -DLIBCXX_CXX_ABI_LIBRARY_PATH=../../libcxxabi/build-$arch/lib \
-        -DCMAKE_CXX_FLAGS="-D_LIBCXXABI_BUILDING_LIBRARY" \
+        -DCMAKE_CXX_FLAGS="-D_LIBCXXABI_BUILDING_LIBRARY -fno-cxx-dll" \
         -DCMAKE_SHARED_LINKER_FLAGS="-lunwind -Wl,--export-all-symbols" \
         -DLIBCXX_ENABLE_ABI_LINKER_SCRIPT=FALSE \
         ..

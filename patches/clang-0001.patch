@@ -1,0 +1,246 @@
+From c3bce84b696cb30425c5af8a0e6825c6c3582022 Mon Sep 17 00:00:00 2001
+From: Martin Storsjo <martin@martin.st>
+Date: Tue, 6 Feb 2018 12:50:14 +0200
+Subject: [PATCH] [WIP] [ItaniunCXXABI] Add an option for loading the type info
+ vtable with dllimport
+
+The first member of the type info structs/objects is a pointer to
+the vtable of the type info class. If the standard C++ library
+that provides this vtable is linked as a DLL, this field of the
+struct needs to be initialized differently.
+
+If statically initializing a variable with a pointer to a
+dllimported variable, that initalization can't be done as normal
+static initialization, since the address of the variable only
+will be available at runtime via the IAT.
+
+For a struct/class with dllimported members, clang skips the normal
+static initalization and instead produces a constructor that will
+do the equivalent initialization at runtime. (Contrary to both GCC
+and MSVC, clang will initialize the whole struct at runtime, while
+GCC and MSVC initialize as much as possible statically and only
+set the dllimported fields at runtime.)
+
+For type info objects that are instantiated in ItaniumCXXABI,
+it's not enough to just set the dllimport attribute on the
+vtable pointer to invoke the existing generation of a constructor
+in CodeGenModule::EmitCXXGlobalVarDeclInitFunc in CGDeclCXX.cpp.
+Instead ItaniumCXXABI needs to manually produce the equivalent
+code.
+
+To enable this behaviour, a new compiler flag, -fcxx-dll, is added,
+that can be set when building code that expects to be linking to
+the standard C++ library as a DLL.
+
+This hasn't been an issue if linking with GNU ld, since GNU ld
+automatically can handle references to variables that weren't
+marked as dllimport during compilation, if the undefined references
+are found in a DLL import library. Since lld doesn't support this
+behaviour, we need to properly use dllimport mechanisms even for
+this field.
+
+The actual implementation isn't very elegant yet - directions on
+how to do it better are welcome.
+---
+ docs/ClangCommandLineReference.rst        |  2 ++
+ include/clang/Driver/Options.td           |  4 ++++
+ include/clang/Frontend/CodeGenOptions.def |  1 +
+ lib/CodeGen/CodeGenModule.h               |  2 ++
+ lib/CodeGen/ItaniumCXXABI.cpp             | 35 ++++++++++++++++++++++++++++++-
+ lib/Driver/ToolChains/Clang.cpp           |  9 ++++++++
+ lib/Frontend/CompilerInvocation.cpp       |  1 +
+ test/CodeGenCXX/rtti-mingw64.cpp          | 22 +++++++++++++++++++
+ 8 files changed, 75 insertions(+), 1 deletion(-)
+
+diff --git a/docs/ClangCommandLineReference.rst b/docs/ClangCommandLineReference.rst
+index 6a0eab4..c01bfeb 100644
+--- a/docs/ClangCommandLineReference.rst
++++ b/docs/ClangCommandLineReference.rst
+@@ -1217,6 +1217,8 @@ Generate coverage mapping to enable code coverage analysis
+ 
+ .. option:: -fcreate-profile
+ 
++.. option:: -fcxx-dll, -fno-cxx-dll
++
+ .. option:: -fcxx-exceptions, -fno-cxx-exceptions
+ 
+ Enable C++ exceptions
+diff --git a/include/clang/Driver/Options.td b/include/clang/Driver/Options.td
+index 78202ce..c07a64b 100644
+--- a/include/clang/Driver/Options.td
++++ b/include/clang/Driver/Options.td
+@@ -760,6 +760,10 @@ def fconstexpr_backtrace_limit_EQ : Joined<["-"], "fconstexpr-backtrace-limit=">
+ def fno_crash_diagnostics : Flag<["-"], "fno-crash-diagnostics">, Group<f_clang_Group>, Flags<[NoArgumentUnused]>,
+   HelpText<"Disable auto-generation of preprocessed source files and a script for reproduction during a clang crash">;
+ def fcreate_profile : Flag<["-"], "fcreate-profile">, Group<f_Group>;
++def fcxx_dll: Flag<["-"], "fcxx-dll">, Group<f_Group>,
++  HelpText<"Generate code for a C++ stdlib linked as a DLL">, Flags<[CC1Option]>;
++def fno_cxx_dll: Flag<["-"], "fno-cxx-dll">, Group<f_Group>,
++  HelpText<"Don't generate code for a C++ stdlib linked as a DLL">, Flags<[CC1Option]>;
+ def fcxx_exceptions: Flag<["-"], "fcxx-exceptions">, Group<f_Group>,
+   HelpText<"Enable C++ exceptions">, Flags<[CC1Option]>;
+ def fcxx_modules : Flag <["-"], "fcxx-modules">, Group<f_Group>,
+diff --git a/include/clang/Frontend/CodeGenOptions.def b/include/clang/Frontend/CodeGenOptions.def
+index 7db368c..656e93d 100644
+--- a/include/clang/Frontend/CodeGenOptions.def
++++ b/include/clang/Frontend/CodeGenOptions.def
+@@ -45,6 +45,7 @@ CODEGENOPT(CoverageExitBlockBeforeBody, 1, 0) ///< Whether to emit the exit bloc
+ CODEGENOPT(CXAAtExit         , 1, 1) ///< Use __cxa_atexit for calling destructors.
+ CODEGENOPT(CXXCtorDtorAliases, 1, 0) ///< Emit complete ctors/dtors as linker
+                                      ///< aliases to base ctors when possible.
++CODEGENOPT(CXXDll            , 1, 0) ///< Set when -fcxx-dll is enabled.
+ CODEGENOPT(DataSections      , 1, 0) ///< Set when -fdata-sections is enabled.
+ CODEGENOPT(UniqueSectionNames, 1, 1) ///< Set for -funique-section-names.
+ CODEGENOPT(DisableFPElim     , 1, 0) ///< Set when -fomit-frame-pointer is enabled.
+diff --git a/lib/CodeGen/CodeGenModule.h b/lib/CodeGen/CodeGenModule.h
+index 42e9e1b..1934b3e 100644
+--- a/lib/CodeGen/CodeGenModule.h
++++ b/lib/CodeGen/CodeGenModule.h
+@@ -1308,8 +1308,10 @@ private:
+                              llvm::Function *InitFunc, InitSegAttr *ISA);
+ 
+   // FIXME: Hardcoding priority here is gross.
++public:
+   void AddGlobalCtor(llvm::Function *Ctor, int Priority = 65535,
+                      llvm::Constant *AssociatedData = nullptr);
++private:
+   void AddGlobalDtor(llvm::Function *Dtor, int Priority = 65535);
+ 
+   /// EmitCtorList - Generates a global array of functions and priorities using
+diff --git a/lib/CodeGen/ItaniumCXXABI.cpp b/lib/CodeGen/ItaniumCXXABI.cpp
+index 8fd0839..d1b67c2 100644
+--- a/lib/CodeGen/ItaniumCXXABI.cpp
++++ b/lib/CodeGen/ItaniumCXXABI.cpp
+@@ -2958,6 +2958,9 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
+ 
+   llvm::Constant *VTable =
+     CGM.getModule().getOrInsertGlobal(VTableName, CGM.Int8PtrTy);
++  llvm::GlobalValue *GV = dyn_cast<llvm::GlobalValue>(VTable);
++  if (GV && CGM.getCodeGenOpts().CXXDll)
++    GV->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
+ 
+   llvm::Type *PtrDiffTy =
+     CGM.getTypes().ConvertType(CGM.getContext().getPointerDiffType());
+@@ -3058,6 +3061,11 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(QualType Ty, bool Force,
+   // Add the vtable pointer.
+   BuildVTablePointer(cast<Type>(Ty));
+ 
++  bool DLLImport = CGM.getCodeGenOpts().CXXDll;
++  llvm::Constant *VTable = Fields.back();
++  if (DLLImport)
++    Fields.back() = llvm::Constant::getNullValue(CGM.Int8PtrTy);
++
+   // And the name.
+   llvm::GlobalVariable *TypeName = GetAddrOfTypeName(Ty, Linkage);
+   llvm::Constant *TypeNameField;
+@@ -3171,7 +3179,7 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(QualType Ty, bool Force,
+   llvm::Module &M = CGM.getModule();
+   llvm::GlobalVariable *GV =
+       new llvm::GlobalVariable(M, Init->getType(),
+-                               /*Constant=*/true, Linkage, Init, Name);
++                               /*Constant=*/ !DLLImport, Linkage, Init, Name);
+ 
+   // If there's already an old global variable, replace it with the new one.
+   if (OldGV) {
+@@ -3185,6 +3193,31 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(QualType Ty, bool Force,
+   if (CGM.supportsCOMDAT() && GV->isWeakForLinker())
+     GV->setComdat(M.getOrInsertComdat(GV->getName()));
+ 
++  if (DLLImport) {
++    llvm::FunctionType *FTy = llvm::FunctionType::get(CGM.VoidTy, false);
++    SmallString<256> FnName;
++    {
++      llvm::raw_svector_ostream Out(FnName);
++      CGM.getCXXABI().getMangleContext().mangleDynamicInitializer(
++          NULL /* VarDecl */, Out);
++    }
++    llvm::Function *Fn = CGM.CreateGlobalInitOrDestructFunction(
++        FTy, FnName.str(), CGM.getTypes().arrangeNullaryFunction());
++
++    CodeGenFunction CGF(CGM);
++    CGF.StartFunction(GlobalDecl(), CGM.getContext().VoidTy, Fn,
++                      CGM.getTypes().arrangeNullaryFunction(), FunctionArgList());
++    llvm::Constant *Zero = llvm::Constant::getNullValue(CGM.Int32Ty);
++    llvm::Constant *Zeros[] = {Zero, Zero};
++    llvm::Value *FieldPtr = llvm::ConstantExpr::getInBoundsGetElementPtr(
++        GV->getValueType(), GV, Zeros);
++    CGF.Builder.CreateDefaultAlignedStore(
++        llvm::ConstantExpr::getBitCast(VTable, CGM.Int8PtrTy), FieldPtr);
++    CGF.FinishFunction();
++    // Run with priority 0, before any user defined ctors
++    CGM.AddGlobalCtor(Fn, 0);
++  }
++
+   // The Itanium ABI specifies that type_info objects must be globally
+   // unique, with one exception: if the type is an incomplete class
+   // type or a (possibly indirect) pointer to one.  That exception
+diff --git a/lib/Driver/ToolChains/Clang.cpp b/lib/Driver/ToolChains/Clang.cpp
+index ef5e64b..418663f 100644
+--- a/lib/Driver/ToolChains/Clang.cpp
++++ b/lib/Driver/ToolChains/Clang.cpp
+@@ -4276,6 +4276,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
+     }
+   }
+ 
++  // Link to the C++ standard library as a DLL.
++  if (Args.hasFlag(options::OPT_fcxx_dll, options::OPT_fno_cxx_dll, false))
++    CmdArgs.push_back("-fcxx-dll");
++
++  // Handle GCC-style exception args.
++  if (!Args.hasFlag(options::OPT_fassume_sane_operator_new,
++                    options::OPT_fno_assume_sane_operator_new))
++    CmdArgs.push_back("-fno-assume-sane-operator-new");
++
+   // C++ "sane" operator new.
+   if (!Args.hasFlag(options::OPT_fassume_sane_operator_new,
+                     options::OPT_fno_assume_sane_operator_new))
+diff --git a/lib/Frontend/CompilerInvocation.cpp b/lib/Frontend/CompilerInvocation.cpp
+index b107f65..e1a393a 100644
+--- a/lib/Frontend/CompilerInvocation.cpp
++++ b/lib/Frontend/CompilerInvocation.cpp
+@@ -632,6 +632,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
+   Opts.ObjCAutoRefCountExceptions = Args.hasArg(OPT_fobjc_arc_exceptions);
+   Opts.CXAAtExit = !Args.hasArg(OPT_fno_use_cxa_atexit);
+   Opts.CXXCtorDtorAliases = Args.hasArg(OPT_mconstructor_aliases);
++  Opts.CXXDll = Args.hasFlag(OPT_fcxx_dll, OPT_fno_cxx_dll, false);
+   Opts.CodeModel = getCodeModel(Args, Diags);
+   Opts.DebugPass = Args.getLastArgValue(OPT_mdebug_pass);
+   Opts.DisableFPElim =
+diff --git a/test/CodeGenCXX/rtti-mingw64.cpp b/test/CodeGenCXX/rtti-mingw64.cpp
+index 9f3e039..af4ae7a 100644
+--- a/test/CodeGenCXX/rtti-mingw64.cpp
++++ b/test/CodeGenCXX/rtti-mingw64.cpp
+@@ -1,4 +1,6 @@
+ // RUN: %clang_cc1 -triple x86_64-windows-gnu %s -emit-llvm -o - | FileCheck %s
++// RUN: %clang_cc1 -fcxx-dll -fno-cxx-dll -triple x86_64-windows-gnu %s -emit-llvm -o - | FileCheck %s
++// RUN: %clang_cc1 -fcxx-dll -triple x86_64-windows-gnu %s -emit-llvm -o - | FileCheck %s -check-prefix=CHECK-DLL
+ struct A { int a; };
+ struct B : virtual A { int b; };
+ B b;
+@@ -16,3 +18,23 @@ C::~C() {}
+ // CHECK-SAME:  i8* bitcast ({ i8*, i8* }* @_ZTI1A to i8*),
+ //    This i64 is important, it should be an i64, not an i32.
+ // CHECK-SAME:  i64 -6141 }, comdat
++
++
++// CHECK-DLL: @_ZTVN10__cxxabiv117__class_type_infoE = external dllimport global i8*
++
++// CHECK-DLL: @_ZTI1C = linkonce_odr global { i8*, i8* }
++//    The first field of the typeinfo, the vtable pointer, is initialized to null
++// CHECK-DLL-SAME:  i8* null,
++// CHECK-DLL-SAME:  i8* getelementptr inbounds ([3 x i8], [3 x i8]* @_ZTS1C, i32 0, i32 0) }, comdat
++// CHECK-DLL: @_ZTI1B = linkonce_odr global { i8*, i8*, i32, i32, i8*, i64 }
++// CHECK-DLL-SAME:  i8* null,
++// CHECK-DLL-SAME:  i8* getelementptr inbounds ([3 x i8], [3 x i8]* @_ZTS1B, i32 0, i32 0),
++
++// CHECK-DLL: @llvm.global_ctors = appending global
++//    Check for high priority constructors (normal constructors run at priority 65535)
++// CHECK-DLL-SAME: { i32 0, void ()* @__cxx_global_var_init.1, i8* null },
++
++// CHECK-DLL: define internal void @__cxx_global_var_init.1()
++//    Check that the runtime constructor initializes the vtable pointer in the typeinfo.
++// CHECK-DLL: store i8* bitcast (i8** getelementptr inbounds (i8*, i8** @_ZTVN10__cxxabiv117__class_type_infoE, i64 2) to i8*),
++// CHECK-DLL-SAME: i8** getelementptr inbounds ({ i8*, i8* }, { i8*, i8* }* @_ZTI1C, i32 0, i32 0)
+-- 
+2.7.4
+

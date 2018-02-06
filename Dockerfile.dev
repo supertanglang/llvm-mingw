@@ -20,6 +20,12 @@ ENV TOOLCHAIN_PREFIX=/opt/llvm-mingw
 COPY build-llvm.sh .
 RUN ./build-llvm.sh $TOOLCHAIN_PREFIX
 
+# Build a second time, with patches, to avoid having to rerun the full step above
+COPY patches/clang-*.patch ./patches/
+RUN cd llvm/tools/clang && \
+    git am ../../../patches/clang-*.patch
+RUN ./build-llvm.sh $TOOLCHAIN_PREFIX
+
 ENV TOOLCHAIN_ARCHS="i686 x86_64 armv7 aarch64"
 
 # Install the usual $TUPLE-clang binaries
