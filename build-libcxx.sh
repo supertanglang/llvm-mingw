@@ -73,6 +73,7 @@ for arch in $ARCHS; do
         ..
     make -j$CORES
     make install
+    cp lib/libunwind.dll $PREFIX/$arch-w64-mingw32/lib
     cd ..
 done
 cd ..
@@ -152,6 +153,7 @@ for arch in $ARCHS; do
     $MERGE_ARCHIVES \
         $PREFIX/$arch-w64-mingw32/lib/libc++.dll.a \
         $PREFIX/$arch-w64-mingw32/lib/libunwind.dll.a
+    cp lib/libc++.dll $PREFIX/$arch-w64-mingw32/lib
     cd ..
 done
 cd ..
