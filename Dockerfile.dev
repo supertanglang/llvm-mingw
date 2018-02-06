@@ -78,3 +78,8 @@ RUN cd test && \
 # size as long as it is in a separate RUN layer though.)
 COPY strip-llvm.sh .
 RUN ./strip-llvm.sh $TOOLCHAIN_PREFIX
+
+RUN cd test && \
+    for arch in $TOOLCHAIN_ARCHS; do \
+        cp $TOOLCHAIN_PREFIX/$arch-w64-mingw32/lib/*.dll .; \
+    done
