@@ -20,7 +20,7 @@ ENV TOOLCHAIN_ARCHS="i686 x86_64 armv7 aarch64"
 
 # Build everything and clean up, in one step
 COPY *.sh libssp-Makefile ./
-COPY wrappers/*.sh ./wrappers/
+COPY wrappers/*.sh wrappers/*.cfg ./wrappers/
 RUN ./build-all.sh $TOOLCHAIN_PREFIX && \
     ./strip-llvm.sh $TOOLCHAIN_PREFIX && \
     rm -rf /build

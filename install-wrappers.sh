@@ -12,6 +12,9 @@ PREFIX="$1"
 
 mkdir -p $PREFIX/bin
 cp wrappers/*-wrapper.sh $PREFIX/bin
+for arch in $ARCHS; do
+    cp wrappers/$arch-w64-mingw32.cfg $PREFIX/bin
+done
 cd $PREFIX/bin
 for arch in $ARCHS; do
     for exec in clang clang++ gcc g++; do
