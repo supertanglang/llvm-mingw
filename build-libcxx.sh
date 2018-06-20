@@ -46,10 +46,19 @@ fi
 LIBCXX=$(pwd)/libcxx
 MERGE_ARCHIVES=$(pwd)/merge-archives.sh
 
+case $(uname) in
+MINGW*)
+    echo "set(CMAKE_GENERATOR \"MSYS Makefiles\" CACHE INTERNAL \"\" FORCE)" > PreLoad.cmake
+    ;;
+*)
+    ;;
+esac
+
 cd libunwind
 for arch in $ARCHS; do
     mkdir -p build-$arch
     cd build-$arch
+    if [ -f ../../PreLoad.cmake ]; then cp ../../PreLoad.cmake .; fi
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=$PREFIX/$arch-w64-mingw32 \
@@ -84,6 +93,7 @@ cd libcxxabi
 for arch in $ARCHS; do
     mkdir -p build-$arch
     cd build-$arch
+    if [ -f ../../PreLoad.cmake ]; then cp ../../PreLoad.cmake .; fi
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=$PREFIX/$arch-w64-mingw32 \
@@ -114,6 +124,7 @@ cd libcxx
 for arch in $ARCHS; do
     mkdir -p build-$arch
     cd build-$arch
+    if [ -f ../../PreLoad.cmake ]; then cp ../../PreLoad.cmake .; fi
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=$PREFIX/$arch-w64-mingw32 \
@@ -150,3 +161,4 @@ for arch in $ARCHS; do
     cd ..
 done
 cd ..
+rm -f PreLoad.cmake
