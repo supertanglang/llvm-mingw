@@ -59,11 +59,20 @@ for arch in $ARCHS; do
     mkdir -p build-$arch
     cd build-$arch
     if [ -f ../../PreLoad.cmake ]; then cp ../../PreLoad.cmake .; fi
+
+    if [ "$arch" = "i686" ]; then
+        ARCH_FLAG="-fsjlj-exceptions"
+    elif [ "$arch" = "x86_64" ]; then
+        ARCH_FLAG="-fdwarf-exceptions"
+    fi
+    export CC="$PREFIX/bin/clang -target $arch-w64-mingw32 -rtlib=compiler-rt -stdlib=libc++ -fuse-ld=lld ${ARCH_FLAG} -Qunused-arguments"
+    export CXX="$CC -driver-mode=g++"
+    export ASM="$CC"
+
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=$PREFIX/$arch-w64-mingw32 \
-        -DCMAKE_C_COMPILER=$arch-w64-mingw32-clang \
-        -DCMAKE_CXX_COMPILER=$arch-w64-mingw32-clang++ \
+        -DCMAKE_CXX_COMPILER_TARGET=$arch-w64-mingw32 \
         -DCMAKE_CROSSCOMPILING=TRUE \
         -DCMAKE_SYSTEM_NAME=Windows \
         -DCMAKE_C_COMPILER_WORKS=TRUE \
@@ -94,11 +103,19 @@ for arch in $ARCHS; do
     mkdir -p build-$arch
     cd build-$arch
     if [ -f ../../PreLoad.cmake ]; then cp ../../PreLoad.cmake .; fi
+
+    if [ "$arch" = "i686" ]; then
+        ARCH_FLAG="-fsjlj-exceptions"
+    elif [ "$arch" = "x86_64" ]; then
+        ARCH_FLAG="-fdwarf-exceptions"
+    fi
+    export CC="$PREFIX/bin/clang -target $arch-w64-mingw32 -rtlib=compiler-rt -stdlib=libc++ -fuse-ld=lld ${ARCH_FLAG} -Qunused-arguments"
+    export CXX="$CC -driver-mode=g++"
+
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=$PREFIX/$arch-w64-mingw32 \
-        -DCMAKE_C_COMPILER=$arch-w64-mingw32-clang \
-        -DCMAKE_CXX_COMPILER=$arch-w64-mingw32-clang++ \
+        -DCMAKE_CXX_COMPILER_TARGET=$arch-w64-mingw32 \
         -DCMAKE_CROSSCOMPILING=TRUE \
         -DCMAKE_SYSTEM_NAME=Windows \
         -DCMAKE_C_COMPILER_WORKS=TRUE \
@@ -125,11 +142,19 @@ for arch in $ARCHS; do
     mkdir -p build-$arch
     cd build-$arch
     if [ -f ../../PreLoad.cmake ]; then cp ../../PreLoad.cmake .; fi
+
+    if [ "$arch" = "i686" ]; then
+        ARCH_FLAG="-fsjlj-exceptions"
+    elif [ "$arch" = "x86_64" ]; then
+        ARCH_FLAG="-fdwarf-exceptions"
+    fi
+    export CC="$PREFIX/bin/clang -target $arch-w64-mingw32 -rtlib=compiler-rt -stdlib=libc++ -fuse-ld=lld ${ARCH_FLAG} -Qunused-arguments"
+    export CXX="$CC -driver-mode=g++"
+
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=$PREFIX/$arch-w64-mingw32 \
-        -DCMAKE_C_COMPILER=$arch-w64-mingw32-clang \
-        -DCMAKE_CXX_COMPILER=$arch-w64-mingw32-clang++ \
+        -DCMAKE_CXX_COMPILER_TARGET=$arch-w64-mingw32 \
         -DCMAKE_CROSSCOMPILING=TRUE \
         -DCMAKE_SYSTEM_NAME=Windows \
         -DCMAKE_C_COMPILER_WORKS=TRUE \
