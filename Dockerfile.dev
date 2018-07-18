@@ -82,6 +82,7 @@ RUN git clone git://git.videolan.org/vlc.git && \
 WORKDIR /build/vlc
 
 RUN cd extras/tools && ./bootstrap && make -j$CORES
+RUN cd extras/tools && make -j$CORES .buildpkg-config && touch .pkg-config && make -j$CORES .buildautoconf .buildautomake
 ENV PATH=/build/vlc/extras/tools/build/bin:$PATH
 
 ENV VLC_ARCH=x86_64
