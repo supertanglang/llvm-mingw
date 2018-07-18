@@ -79,10 +79,12 @@ RUN git clone git://git.videolan.org/vlc.git && \
     cd vlc && \
     git checkout 9a3fef9 # known working hash
 
+COPY 00*.patch .
+RUN cd vlc && git am -3 ../00*.patch
+
 WORKDIR /build/vlc
 
 RUN cd extras/tools && ./bootstrap && make -j$CORES
-RUN cd extras/tools && make -j$CORES .buildpkg-config && touch .pkg-config && make -j$CORES .buildautoconf .buildautomake
 ENV PATH=/build/vlc/extras/tools/build/bin:$PATH
 
 ENV VLC_ARCH=x86_64

@@ -1,0 +1,31 @@
+From cb97d4bd58ab7d77ec3a7bc8eec149d949c62b85 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Martin=20Storsj=C3=B6?= <martin@martin.st>
+Date: Wed, 18 Jul 2018 22:50:50 +0300
+Subject: [PATCH] contrib: Add extras/tools/build/share/aclocal to
+ ACLOCAL_AMFLAGS
+
+If some tools (e.g. libtool) have been built in extras/tools, but
+automake/autoconf haven't, we need to make sure to pick up the
+aclocal files from there, otherwise the build will end up with
+inconsistent results and the build will fail.
+---
+ contrib/src/main.mak | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/contrib/src/main.mak b/contrib/src/main.mak
+index cb5aea3..ddd8b16 100644
+--- a/contrib/src/main.mak
++++ b/contrib/src/main.mak
+@@ -188,6 +188,9 @@ HAVE_FPU = 1
+ endif
+ 
+ ACLOCAL_AMFLAGS += -I$(PREFIX)/share/aclocal
++ifneq ($(wildcard $(TOPSRC)/../extras/tools/build/share/aclocal/*),)
++ACLOCAL_AMFLAGS += -I$(abspath $(TOPSRC)/../extras/tools/build/share/aclocal)
++endif
+ export ACLOCAL_AMFLAGS
+ 
+ #########
+-- 
+2.7.4
+
