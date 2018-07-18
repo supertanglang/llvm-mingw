@@ -72,3 +72,32 @@ RUN ./build-libssp.sh $TOOLCHAIN_PREFIX
 # size as long as it is in a separate RUN layer though.)
 COPY strip-llvm.sh .
 RUN ./strip-llvm.sh $TOOLCHAIN_PREFIX
+
+RUN apt-get update && apt-get install -y lua5.2 libtool automake autoconf autopoint make gettext pkg-config qt4-dev-tools qt5-default git subversion cmake cvs wine64-development-tools zip p7zip nsis bzip2 yasm ragel ant default-jdk protobuf-compiler dos2unix vim gperf
+
+RUN git clone git://git.videolan.org/vlc.git && \
+    cd vlc && \
+    git checkout 9a3fef9 # known working hash
+
+WORKDIR /build/vlc
+
+RUN cd extras/tools && ./bootstrap && make -j$CORES
+ENV PATH=/build/vlc/extras/tools/build/bin:$PATH
+
+ENV VLC_ARCH=x86_64
+
+RUN mkdir -p contrib/win32 && \
+    cd contrib/win32 && \
+    ../bootstrap --host=$VLC_ARCH-w64-mingw32 && \
+    make -j$CORES fetch
+RUN cd contrib/win32 && \
+    make -j$CORES
+RUN ./bootstrap
+ENV PKG_CONFIG_LIBDIR=/build/vlc/contrib/$VLC_ARCH7-w64-mingw32/lib/pkgconfig
+RUN mkdir win32 && \
+    cd win32 && \
+    ../extras/package/win32/configure.sh --host=$VLC_ARCH-w64-mingw32 && \
+    make -j$CORES
+# --build=x86_64-pc-linux-gnu LDFLAGS="/build/prefix/lib/clang/6.0.0/lib/windows/libclang_rt.builtins-arm.a" && \
+RUN cd win32 && \
+    make package-win-common
